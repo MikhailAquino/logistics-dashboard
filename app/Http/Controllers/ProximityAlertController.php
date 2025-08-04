@@ -21,6 +21,6 @@ class ProximityAlertController extends Controller
             $data = ['error' => 'Invalid response from API'];
         }
 
-        return view('dashboard.alerts', ['data' => $data]);
+        return redirect('/proximity-form')->with('alertData', $data);
     }
 }
