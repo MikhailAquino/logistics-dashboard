@@ -41,7 +41,7 @@
         </div>
     </div>
 
-    {{-- Modal for Alerts, with blurred background --}}
+    {{-- Modal for Alerts --}}
     @if(session('alertData'))
         <div
             x-show="modalOpen"
@@ -67,15 +67,58 @@
         </div>
     @endif
 </div>
-{{-- Leaflet.js CDN --}}
+
+{{-- Leaflet.js & Turf.js CDN --}}
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+
 <script>
     // Default coordinates (e.g., Manila)
     const defaultWarehouse = [14.5995, 120.9842];
     const defaultDelivery = [14.6000, 120.9850];
 
     let map, warehouseMarker, deliveryMarker, radiusCircle;
+    window.heatmapLayers = [];
+
+    function addDistanceHeatmap(warehouseCoords) {
+        // Remove old heatmap layers if any
+        if (window.heatmapLayers.length > 0) {
+            window.heatmapLayers.forEach(layer => map.removeLayer(layer));
+            window.heatmapLayers = [];
+        }
+
+        // Define the distance rings (in meters) and colors
+        const rings = [
+            { radius: 100, color: "#a3e635" },    // lime
+            { radius: 250, color: "#facc15" },    // yellow
+            { radius: 500, color: "#f87171" }     // red
+        ];
+
+        let lastBuffer = null;
+        rings.forEach((ring, idx) => {
+            const center = turf.point([warehouseCoords[1], warehouseCoords[0]]); // [lng, lat]
+            const buffer = turf.buffer(center, ring.radius, { units: 'meters' });
+
+            // To make concentric rings, subtract previous buffer
+            let displayBuffer = buffer;
+            if (lastBuffer) {
+                displayBuffer = turf.difference(buffer, lastBuffer);
+            }
+            lastBuffer = buffer;
+
+            const layer = L.geoJSON(displayBuffer, {
+                style: {
+                    color: ring.color,
+                    fillColor: ring.color,
+                    fillOpacity: 0.25,
+                    weight: 1
+                }
+            }).addTo(map);
+            window.heatmapLayers.push(layer);
+        });
+    }
 
     function initMap(warehouseCoords = defaultWarehouse, deliveryCoords = defaultDelivery, radius = 250) {
         if (map) {
@@ -103,6 +146,8 @@
             fillColor: '#c4b5fd',
             fillOpacity: 0.3
         }).addTo(map);
+
+        addDistanceHeatmap(warehouseCoords);
 
         // Initial form fill on page load
         document.getElementById('delivery-lat').value = deliveryCoords[0];
